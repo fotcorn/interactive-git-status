@@ -478,6 +478,18 @@ class GitTUI:
                 self.cursor_pos += 1
                 self.status_message = ""
 
+        elif key == curses.KEY_PPAGE:
+            height, _ = self.stdscr.getmaxyx()
+            page_size = height - 4
+            self.cursor_pos = max(0, self.cursor_pos - page_size)
+            self.status_message = ""
+
+        elif key == curses.KEY_NPAGE:
+            height, _ = self.stdscr.getmaxyx()
+            page_size = height - 4
+            self.cursor_pos = min(len(self.files) - 1, self.cursor_pos + page_size)
+            self.status_message = ""
+
         elif key == ord(' '):
             self._toggle_stage_current_file()
 
