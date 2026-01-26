@@ -334,7 +334,7 @@ class GitTUI:
         self._draw_status_bar()
 
         # Draw help bar for diff view
-        help_text = "Q Back  j/k Scroll  Space Stage/Unstage"
+        help_text = "Q Back  Space Stage/Unstage  PgUp/PgDn Scroll"
         attr = curses.color_pair(5) if self.has_colors else curses.A_REVERSE
         self._safe_addstr(height - 1, 0, help_text.ljust(width - 1), attr)
 
@@ -349,7 +349,7 @@ class GitTUI:
     def _draw_help_bar(self):
         """Draw help bar at bottom"""
         height, width = self.stdscr.getmaxyx()
-        help_text = "Q Quit  Space Stage/Unstage  D Diff  C Commit  R Refresh  j/k Navigate"
+        help_text = "Q Quit  Space Stage/Unstage  D Diff  C Commit  A Stage All  R Refresh"
         attr = curses.color_pair(5) if self.has_colors else curses.A_REVERSE
         self._safe_addstr(height - 1, 0, help_text.ljust(width - 1), attr)
 
@@ -433,12 +433,12 @@ class GitTUI:
         if key in (ord('q'), ord('Q')):
             return False
 
-        elif key in (curses.KEY_UP, ord('k')):
+        elif key == curses.KEY_UP:
             if self.cursor_pos > 0:
                 self.cursor_pos -= 1
                 self.status_message = ""
 
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key == curses.KEY_DOWN:
             if self.cursor_pos < len(self.files) - 1:
                 self.cursor_pos += 1
                 self.status_message = ""
@@ -539,20 +539,20 @@ class GitTUI:
             self.mode = 'list'
             self.status_message = ""
 
-        elif key in (curses.KEY_UP, ord('k')):
+        elif key == curses.KEY_UP:
             self.diff_scroll = max(0, self.diff_scroll - 1)
 
-        elif key in (curses.KEY_DOWN, ord('j')):
+        elif key == curses.KEY_DOWN:
             max_scroll = max(0, len(self.diff_content) - viewable_lines)
             self.diff_scroll = min(self.diff_scroll + 1, max_scroll)
 
         elif key == ord(' '):
             self._toggle_stage_in_diff()
 
-        elif key in (curses.KEY_PPAGE, ord('b')):  # Page up
+        elif key == curses.KEY_PPAGE:
             self.diff_scroll = max(0, self.diff_scroll - viewable_lines)
 
-        elif key in (curses.KEY_NPAGE, ord('f')):  # Page down
+        elif key == curses.KEY_NPAGE:
             max_scroll = max(0, len(self.diff_content) - viewable_lines)
             self.diff_scroll = min(self.diff_scroll + viewable_lines, max_scroll)
 
