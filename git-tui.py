@@ -370,7 +370,7 @@ class GitTUI:
     def _draw_help_bar(self):
         """Draw help bar at bottom (nano-style: keys reversed, actions normal)"""
         height, width = self.stdscr.getmaxyx()
-        items = [("Q", "Quit"), ("Space", "Stage"), ("D", "Diff"), ("C", "Commit"), ("A", "All"), ("R", "Refresh")]
+        items = [("Q", "Quit"), ("Space", "Stage"), ("D", "Diff"), ("C", "Commit"), ("A", "Stage all modified"), ("R", "Refresh")]
         col = 0
         for key, action in items:
             if col >= width - 1:
@@ -526,18 +526,18 @@ class GitTUI:
             self.cursor_pos = max(0, min(self.cursor_pos, len(ordered) - 1))
 
     def _stage_all(self):
-        """Stage all unstaged and untracked files"""
-        unstaged = [f for f in self.files if not f.staged]
-        if not unstaged:
-            self.status_message = "No files to stage"
+        """Stage all modified files (not untracked)"""
+        modified = [f for f in self.files if not f.staged and f.status != 'untracked']
+        if not modified:
+            self.status_message = "No modified files to stage"
             return
 
-        for f in unstaged:
+        for f in modified:
             self.run_git_command(['add', '--', f.path])
 
         self.parse_git_status()
         self.cursor_pos = 0
-        self.status_message = f"Staged {len(unstaged)} file(s)"
+        self.status_message = f"Staged {len(modified)} file(s)"
 
     def _refresh_status(self):
         """Refresh the git status"""
