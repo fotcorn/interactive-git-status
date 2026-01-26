@@ -227,31 +227,26 @@ class GitTUI:
         display_lines = []
 
         file_index = 0
-        if staged_files:
-            attr = curses.color_pair(1) | curses.A_BOLD if self.has_colors else curses.A_BOLD
-            display_lines.append(("Changes to be committed:", attr, None))
-            for f in staged_files:
-                display_lines.append((f, None, file_index))
-                file_index += 1
-            display_lines.append(("", curses.A_NORMAL, None))
 
-        if unstaged_files:
-            attr = curses.color_pair(2) | curses.A_BOLD if self.has_colors else curses.A_BOLD
-            display_lines.append(("Changes not staged for commit:", attr, None))
-            for f in unstaged_files:
-                display_lines.append((f, None, file_index))
-                file_index += 1
-            display_lines.append(("", curses.A_NORMAL, None))
+        attr = curses.color_pair(1) | curses.A_BOLD if self.has_colors else curses.A_BOLD
+        display_lines.append(("Changes to be committed:", attr, None))
+        for f in staged_files:
+            display_lines.append((f, None, file_index))
+            file_index += 1
+        display_lines.append(("", curses.A_NORMAL, None))
 
-        if untracked_files:
-            attr = curses.color_pair(3) | curses.A_BOLD if self.has_colors else curses.A_BOLD
-            display_lines.append(("Untracked files:", attr, None))
-            for f in untracked_files:
-                display_lines.append((f, None, file_index))
-                file_index += 1
+        attr = curses.color_pair(2) | curses.A_BOLD if self.has_colors else curses.A_BOLD
+        display_lines.append(("Changes not staged for commit:", attr, None))
+        for f in unstaged_files:
+            display_lines.append((f, None, file_index))
+            file_index += 1
+        display_lines.append(("", curses.A_NORMAL, None))
 
-        if not self.files:
-            display_lines.append(("No changes. Working directory clean.", curses.A_DIM, None))
+        attr = curses.color_pair(3) | curses.A_BOLD if self.has_colors else curses.A_BOLD
+        display_lines.append(("Untracked files:", attr, None))
+        for f in untracked_files:
+            display_lines.append((f, None, file_index))
+            file_index += 1
 
         # Calculate scroll offset to keep cursor visible
         # Find which display line has the cursor
