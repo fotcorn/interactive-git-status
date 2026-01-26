@@ -239,49 +239,54 @@ class GitTUI:
         unstaged_files = [f for f in self.files if not f.staged and f.status != 'untracked']
         untracked_files = [f for f in self.files if f.status == 'untracked']
 
-        # Build display lines: list of (text, attr, file_index_or_none)
+        # Build display lines: list of (text, attr, file_index_or_none, section_start_line)
         display_lines = []
 
         file_index = 0
 
         attr = curses.color_pair(1) | curses.A_BOLD if self.has_colors else curses.A_BOLD
-        display_lines.append(("Changes to be committed:", attr, None))
+        section_start = len(display_lines)
+        display_lines.append(("Changes to be committed:", attr, None, None))
         for f in staged_files:
-            display_lines.append((f, None, file_index))
+            display_lines.append((f, None, file_index, section_start))
             file_index += 1
-        display_lines.append(("", curses.A_NORMAL, None))
+        display_lines.append(("", curses.A_NORMAL, None, None))
 
         attr = curses.color_pair(2) | curses.A_BOLD if self.has_colors else curses.A_BOLD
-        display_lines.append(("Changes not staged for commit:", attr, None))
+        section_start = len(display_lines)
+        display_lines.append(("Changes not staged for commit:", attr, None, None))
         for f in unstaged_files:
-            display_lines.append((f, None, file_index))
+            display_lines.append((f, None, file_index, section_start))
             file_index += 1
-        display_lines.append(("", curses.A_NORMAL, None))
+        display_lines.append(("", curses.A_NORMAL, None, None))
 
         attr = curses.color_pair(3) | curses.A_BOLD if self.has_colors else curses.A_BOLD
-        display_lines.append(("Untracked files:", attr, None))
+        section_start = len(display_lines)
+        display_lines.append(("Untracked files:", attr, None, None))
         for f in untracked_files:
-            display_lines.append((f, None, file_index))
+            display_lines.append((f, None, file_index, section_start))
             file_index += 1
 
         # Calculate scroll offset to keep cursor visible
-        # Find which display line has the cursor
+        # Find which display line has the cursor and its section heading
         cursor_display_line = 0
-        for i, (content, attr, fidx) in enumerate(display_lines):
+        cursor_section_start = 0
+        for i, (content, attr, fidx, section_start) in enumerate(display_lines):
             if fidx == self.cursor_pos:
                 cursor_display_line = i
+                cursor_section_start = section_start if section_start is not None else i
                 break
 
-        # Adjust scroll offset
+        # Adjust scroll offset (ensure section heading is visible when scrolling up)
         if cursor_display_line < self.scroll_offset:
-            self.scroll_offset = cursor_display_line
+            self.scroll_offset = cursor_section_start
         elif cursor_display_line >= self.scroll_offset + visible_height:
             self.scroll_offset = cursor_display_line - visible_height + 1
 
         self.scroll_offset = max(0, min(self.scroll_offset, max(0, len(display_lines) - visible_height)))
 
-        # Draw visible lines (starting at row 1, after branch line)
-        for i, (content, attr, fidx) in enumerate(display_lines[self.scroll_offset:]):
+        # Draw visible lines (starting at row 2, after branch line + empty line)
+        for i, (content, attr, fidx, _) in enumerate(display_lines[self.scroll_offset:]):
             if i >= visible_height:
                 break
 
