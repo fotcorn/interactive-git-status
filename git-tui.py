@@ -333,10 +333,19 @@ class GitTUI:
         # Draw status bar
         self._draw_status_bar()
 
-        # Draw help bar for diff view
-        help_text = "Q Back  Space Stage/Unstage  PgUp/PgDn Scroll"
-        attr = curses.color_pair(5) if self.has_colors else curses.A_REVERSE
-        self._safe_addstr(height - 1, 0, help_text.ljust(width - 1), attr)
+        # Draw help bar for diff view (nano-style)
+        items = [("Q", "Back"), ("Space", "Stage"), ("PgUp/Dn", "Scroll")]
+        col = 0
+        for key, action in items:
+            if col >= width - 1:
+                break
+            try:
+                self.stdscr.addstr(height - 1, col, key, curses.A_REVERSE)
+                col += len(key)
+                self.stdscr.addstr(height - 1, col, " " + action + "  ")
+                col += len(action) + 3
+            except curses.error:
+                pass
 
         self.stdscr.refresh()
 
@@ -347,11 +356,20 @@ class GitTUI:
             self._safe_addstr(height - 2, 0, self.status_message, curses.A_BOLD)
 
     def _draw_help_bar(self):
-        """Draw help bar at bottom"""
+        """Draw help bar at bottom (nano-style: keys reversed, actions normal)"""
         height, width = self.stdscr.getmaxyx()
-        help_text = "Q Quit  Space Stage/Unstage  D Diff  C Commit  A Stage All  R Refresh"
-        attr = curses.color_pair(5) if self.has_colors else curses.A_REVERSE
-        self._safe_addstr(height - 1, 0, help_text.ljust(width - 1), attr)
+        items = [("Q", "Quit"), ("Space", "Stage"), ("D", "Diff"), ("C", "Commit"), ("A", "All"), ("R", "Refresh")]
+        col = 0
+        for key, action in items:
+            if col >= width - 1:
+                break
+            try:
+                self.stdscr.addstr(height - 1, col, key, curses.A_REVERSE)
+                col += len(key)
+                self.stdscr.addstr(height - 1, col, " " + action + "  ")
+                col += len(action) + 3
+            except curses.error:
+                pass
 
     def show_commit_dialog(self):
         """Show commit message input dialog"""
