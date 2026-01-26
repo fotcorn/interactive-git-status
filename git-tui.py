@@ -91,6 +91,13 @@ class GitTUI:
         except Exception as e:
             return 1, "", str(e)
 
+    def get_current_branch(self) -> str:
+        """Get the current branch name"""
+        returncode, stdout, stderr = self.run_git_command(['rev-parse', '--abbrev-ref', 'HEAD'])
+        if returncode == 0:
+            return stdout.strip()
+        return ""
+
     def parse_git_status(self):
         """Parse git status --porcelain output"""
         returncode, stdout, stderr = self.run_git_command(['status', '--porcelain'])
@@ -215,8 +222,17 @@ class GitTUI:
         self.stdscr.clear()
         height, width = self.stdscr.getmaxyx()
 
-        # Calculate visible area (reserve 2 lines for status + help)
-        visible_height = height - 2
+        # Draw branch name at top
+        branch = self.get_current_branch()
+        if branch:
+            self._safe_addstr(0, 0, "On branch ")
+            try:
+                self.stdscr.addstr(branch, curses.A_REVERSE)
+            except curses.error:
+                pass
+
+        # Calculate visible area (reserve 4 lines for branch + empty + status + help)
+        visible_height = height - 4
 
         # Group files by status
         staged_files = [f for f in self.files if f.staged]
@@ -264,11 +280,12 @@ class GitTUI:
 
         self.scroll_offset = max(0, min(self.scroll_offset, max(0, len(display_lines) - visible_height)))
 
-        # Draw visible lines
-        for row, (content, attr, fidx) in enumerate(display_lines[self.scroll_offset:]):
-            if row >= visible_height:
+        # Draw visible lines (starting at row 1, after branch line)
+        for i, (content, attr, fidx) in enumerate(display_lines[self.scroll_offset:]):
+            if i >= visible_height:
                 break
 
+            row = i + 2  # Offset for branch line + empty line
             if isinstance(content, GitFile):
                 self._draw_file_line(row, fidx, content, width)
             else:
