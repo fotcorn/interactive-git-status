@@ -523,7 +523,11 @@ class GitTUI:
             return
 
         file = ordered[self.cursor_pos]
-        current_path = file.path
+
+        # Remember the file below cursor to move there after operation
+        next_file_key = None
+        if self.cursor_pos + 1 < len(ordered):
+            next_file_key = ordered[self.cursor_pos + 1].key()
 
         if file.staged:
             self.unstage_file(file)
@@ -532,15 +536,20 @@ class GitTUI:
 
         self.parse_git_status()
 
-        # Try to keep cursor on same file (it may have moved in the list)
         ordered = self._get_ordered_files()
-        for i, f in enumerate(ordered):
-            if f.path == current_path:
-                self.cursor_pos = i
-                break
-        else:
-            # File might be gone, clamp cursor
-            self.cursor_pos = max(0, min(self.cursor_pos, len(ordered) - 1))
+        if len(ordered) == 0:
+            self.cursor_pos = 0
+            return
+
+        # Find the next file's new position
+        if next_file_key:
+            for i, f in enumerate(ordered):
+                if f.key() == next_file_key:
+                    self.cursor_pos = i
+                    return
+
+        # No next file (was at end), move to new last position
+        self.cursor_pos = min(self.cursor_pos, len(ordered) - 1)
 
     def _stage_all(self):
         """Stage all modified files (not untracked)"""
