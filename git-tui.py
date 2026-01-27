@@ -191,6 +191,47 @@ class GitTUI:
         else:
             self.status_message = f"Error unstaging: {stderr}"
 
+    def discard_changes(self, file: GitFile):
+        """Discard changes in a file (restore to HEAD)"""
+        returncode, stdout, stderr = self.run_git_command(['restore', '--', file.path])
+        if returncode == 0:
+            self.status_message = f"Discarded changes: {file.path}"
+        else:
+            self.status_message = f"Error discarding: {stderr}"
+
+    def show_confirm_dialog(self, title: str, filename: str) -> bool:
+        """Show a confirmation dialog, returns True if user confirms"""
+        height, width = self.stdscr.getmaxyx()
+
+        # Calculate dialog dimensions
+        prompt = "(y/n)"
+        max_content = max(len(title), len(filename), len(prompt))
+        dialog_width = min(max_content + 6, width - 4)
+        dialog_height = 5
+        start_y = height // 2 - 2
+        start_x = (width - dialog_width) // 2
+
+        # Draw dialog box
+        attr = curses.A_REVERSE
+        for row in range(dialog_height):
+            self._safe_addstr(start_y + row, start_x, " " * dialog_width, attr)
+
+        # Draw title, filename, and prompt centered
+        self._safe_addstr(start_y + 1, start_x + (dialog_width - len(title)) // 2, title, attr)
+        display_name = filename if len(filename) < dialog_width - 4 else "..." + filename[-(dialog_width - 7):]
+        self._safe_addstr(start_y + 2, start_x + (dialog_width - len(display_name)) // 2, display_name, attr)
+        self._safe_addstr(start_y + 3, start_x + (dialog_width - len(prompt)) // 2, prompt, attr)
+
+        self.stdscr.refresh()
+
+        # Wait for y/n
+        while True:
+            key = self.stdscr.getch()
+            if key in (ord('y'), ord('Y')):
+                return True
+            elif key in (ord('n'), ord('N'), 27):  # 27 = ESC
+                return False
+
     def _get_ordered_files(self) -> List[GitFile]:
         """Get files in display order: staged, unstaged, untracked"""
         staged = [f for f in self.files if f.staged]
@@ -375,7 +416,7 @@ class GitTUI:
     def _draw_help_bar(self):
         """Draw help bar at bottom (nano-style: keys reversed, actions normal)"""
         height, width = self.stdscr.getmaxyx()
-        items = [("Q", "Quit"), ("Space", "Stage"), ("D", "Diff"), ("C", "Commit"), ("A", "Stage all modified"), ("R", "Refresh")]
+        items = [("Q", "Quit"), ("Space", "Stage"), ("D", "Diff"), ("C", "Commit"), ("A", "Stage modified"), ("U", "Discard"), ("R", "Refresh")]
         col = 0
         for key, action in items:
             if col >= width - 1:
@@ -514,6 +555,10 @@ class GitTUI:
             # Stage all files
             self._stage_all()
 
+        elif key in (ord('u'), ord('U')):
+            # Discard changes (restore to HEAD)
+            self._discard_current_file()
+
         return True
 
     def _toggle_stage_current_file(self):
@@ -564,6 +609,37 @@ class GitTUI:
         self.parse_git_status()
         self.cursor_pos = 0
         self.status_message = f"Staged {len(modified)} file(s)"
+
+    def _discard_current_file(self):
+        """Discard changes for the current file with confirmation"""
+        ordered = self._get_ordered_files()
+        if self.cursor_pos >= len(ordered):
+            return
+
+        file = ordered[self.cursor_pos]
+
+        # Only works on unstaged, non-untracked files
+        if file.staged:
+            self.status_message = "Cannot discard staged changes (unstage first)"
+            return
+        if file.status == 'untracked':
+            self.status_message = "Cannot discard untracked file"
+            return
+
+        # Show confirmation
+        if not self.show_confirm_dialog("Discard changes?", file.path):
+            self.status_message = "Cancelled"
+            return
+
+        self.discard_changes(file)
+        self.parse_git_status()
+
+        # Adjust cursor if needed
+        ordered = self._get_ordered_files()
+        if len(ordered) == 0:
+            self.cursor_pos = 0
+        else:
+            self.cursor_pos = min(self.cursor_pos, len(ordered) - 1)
 
     def _refresh_status(self):
         """Refresh the git status"""
