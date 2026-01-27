@@ -4,11 +4,15 @@ Interactive Git TUI - A simple terminal UI for git staging and committing
 Requires: Python 3.6+ with curses (built-in on Unix systems)
 """
 
+import argparse
 import curses
+import fcntl
 import subprocess
 import sys
 import tempfile
+import time
 import os
+import select
 from typing import List, Tuple, Optional
 
 
@@ -30,7 +34,7 @@ class GitFile:
 
 
 class GitTUI:
-    def __init__(self, stdscr):
+    def __init__(self, stdscr, watch: bool = True):
         self.stdscr = stdscr
         self.cursor_pos = 0
         self.scroll_offset = 0
@@ -41,6 +45,10 @@ class GitTUI:
         self.status_message = ""
         self.has_colors = False
         self.repo_root: Optional[str] = None
+        self.watch_enabled = watch
+        self.watcher_proc: Optional[subprocess.Popen] = None
+        self.last_refresh_time: float = 0
+        self.events_during_cooldown = False
 
         self._init_curses()
         self._find_repo_root()
@@ -59,6 +67,91 @@ class GitTUI:
                 self.status_message = "Error: Not a git repository"
         except Exception as e:
             self.status_message = f"Error finding repo: {e}"
+
+    def _has_inotifywait(self) -> bool:
+        """Check if inotifywait is available"""
+        try:
+            result = subprocess.run(
+                ['which', 'inotifywait'],
+                capture_output=True
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    def _start_watcher(self):
+        """Start inotifywait subprocess if available"""
+        if not self.watch_enabled or not self.repo_root:
+            return
+        if not self._has_inotifywait():
+            return
+
+        try:
+            self.watcher_proc = subprocess.Popen(
+                ['inotifywait', '-r', '-m',
+                 '-e', 'create',
+                 '-e', 'modify',
+                 '-e', 'delete',
+                 '-e', 'move',
+                 self.repo_root],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL
+            )
+            # Make stdout non-blocking
+            fd = self.watcher_proc.stdout.fileno()
+            flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+        except Exception:
+            self.watcher_proc = None
+
+    def _stop_watcher(self):
+        """Stop inotifywait subprocess"""
+        if self.watcher_proc:
+            self.watcher_proc.terminate()
+            try:
+                self.watcher_proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                self.watcher_proc.kill()
+            self.watcher_proc = None
+
+    def _check_watcher(self):
+        """Check for inotifywait events and handle debouncing"""
+        if not self.watcher_proc:
+            return
+
+        now = time.time()
+        cooldown = 0.2  # 200ms
+        in_cooldown = (now - self.last_refresh_time) < cooldown
+        has_events = False
+
+        # Check if there's data to read
+        try:
+            readable, _, _ = select.select([self.watcher_proc.stdout], [], [], 0)
+            if readable:
+                # Drain all available data
+                try:
+                    while self.watcher_proc.stdout.read(4096):
+                        pass
+                except (BlockingIOError, IOError):
+                    pass
+                has_events = True
+        except Exception:
+            pass
+
+        if has_events:
+            if not in_cooldown:
+                # Refresh immediately
+                self._refresh_status()
+                self.last_refresh_time = time.time()
+                self.events_during_cooldown = False
+            else:
+                # Remember we got events during cooldown
+                self.events_during_cooldown = True
+        elif self.events_during_cooldown and not in_cooldown:
+            # Cooldown expired and we had events - do one final refresh
+            self._refresh_status()
+            self.last_refresh_time = time.time()
+            self.events_during_cooldown = False
 
     def _init_curses(self):
         """Initialize curses settings"""
@@ -497,6 +590,10 @@ class GitTUI:
         except KeyboardInterrupt:
             return False
 
+        # Timeout (no input) - just continue
+        if key == -1:
+            return True
+
         if self.mode == 'list':
             return self._handle_list_input(key)
         elif self.mode == 'diff':
@@ -734,29 +831,43 @@ class GitTUI:
             return
 
         self.parse_git_status()
+        self._start_watcher()
+
+        # Use timeout for getch so we can check for file changes
+        if self.watcher_proc:
+            self.stdscr.timeout(100)  # 100ms timeout
 
         if not self.files:
             self.status_message = "No changes. Working directory clean."
 
-        while True:
-            if self.mode == 'list':
-                self.draw_file_list()
-            elif self.mode == 'diff':
-                self.draw_diff_view()
+        try:
+            while True:
+                if self.mode == 'list':
+                    self.draw_file_list()
+                elif self.mode == 'diff':
+                    self.draw_diff_view()
 
-            if not self.handle_input():
-                break
+                if not self.handle_input():
+                    break
+
+                self._check_watcher()
+        finally:
+            self._stop_watcher()
 
 
-def main(stdscr):
-    """Main entry point for curses"""
-    tui = GitTUI(stdscr)
-    tui.run()
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description='Interactive Git TUI')
+    parser.add_argument('--no-watch', action='store_true',
+                        help='Disable automatic refresh via inotifywait')
+    args = parser.parse_args()
 
+    def run_tui(stdscr):
+        tui = GitTUI(stdscr, watch=not args.no_watch)
+        tui.run()
 
-if __name__ == "__main__":
     try:
-        curses.wrapper(main)
+        curses.wrapper(run_tui)
     except KeyboardInterrupt:
         print("\nExited.")
         sys.exit(0)
@@ -765,3 +876,7 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
