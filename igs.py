@@ -509,7 +509,7 @@ class GitTUI:
     def _draw_help_bar(self):
         """Draw help bar at bottom (nano-style: keys reversed, actions normal)"""
         height, width = self.stdscr.getmaxyx()
-        items = [("Q", "Quit"), ("Space", "Stage"), ("D", "Diff"), ("C", "Commit"), ("A", "Stage modified"), ("U", "Discard"), ("R", "Refresh")]
+        items = [("Q", "Quit"), ("Space", "Stage"), ("D", "Diff"), ("P", "Patch"), ("C", "Commit"), ("A", "Stage modified"), ("U", "Discard"), ("R", "Refresh")]
         col = 0
         for key, action in items:
             if col >= width - 1:
@@ -652,6 +652,9 @@ class GitTUI:
             # Stage all files
             self._stage_all()
 
+        elif key in (ord('p'), ord('P')):
+            self._chunk_stage_current_file()
+
         elif key in (ord('u'), ord('U')):
             # Discard changes (restore to HEAD)
             self._discard_current_file()
@@ -692,6 +695,38 @@ class GitTUI:
 
         # No next file (was at end), move to new last position
         self.cursor_pos = min(self.cursor_pos, len(ordered) - 1)
+
+    def _chunk_stage_current_file(self):
+        """Run git add -p on the current file"""
+        ordered = self._get_ordered_files()
+        if self.cursor_pos >= len(ordered):
+            return
+
+        file = ordered[self.cursor_pos]
+
+        if file.staged:
+            self.status_message = "File is already staged (unstage first)"
+            return
+        if file.status == 'untracked':
+            self.status_message = "Cannot chunk-stage untracked file"
+            return
+
+        curses.endwin()
+
+        try:
+            subprocess.run(['git', 'add', '-p', '--', file.path], cwd=self.repo_root)
+        except Exception as e:
+            self.stdscr = curses.initscr()
+            self._init_curses()
+            self.status_message = f"Error running git add -p: {e}"
+            return
+
+        self.stdscr = curses.initscr()
+        self._init_curses()
+
+        self.parse_git_status()
+        self.cursor_pos = min(self.cursor_pos, max(0, len(self._get_ordered_files()) - 1))
+        self.status_message = f"Chunk staging done: {file.path}"
 
     def _stage_all(self):
         """Stage all modified files (not untracked)"""
