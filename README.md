@@ -5,7 +5,7 @@ Screenshot: ![Screenshot](screenshot.png)
 Installation:
 
 ```bash
-sudo apt install inotify-tools
+sudo apt install -y inotify-tools
 sudo wget https://raw.githubusercontent.com/fotcorn/interactive-git-status/refs/heads/main/igs.py -O /usr/local/bin/igs && \
 sudo chmod a+x /usr/local/bin/igs
 ```
