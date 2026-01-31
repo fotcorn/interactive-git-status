@@ -84,6 +84,7 @@ class GitTUI:
         if not self.watch_enabled or not self.repo_root:
             return
         if not self._has_inotifywait():
+            self.status_message = "Auto-refresh not available, install inotify-tools"
             return
 
         try:
@@ -791,8 +792,6 @@ class GitTUI:
                 self.cursor_pos = max(0, min(self.cursor_pos, len(ordered) - 1))
         else:
             self.cursor_pos = 0
-
-        self.status_message = "Refreshed"
 
     def _handle_diff_input(self, key):
         """Handle input in diff mode"""
