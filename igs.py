@@ -792,8 +792,6 @@ class GitTUI:
         else:
             self.cursor_pos = 0
 
-        self.status_message = "Refreshed"
-
     def _handle_diff_input(self, key):
         """Handle input in diff mode"""
         height, _ = self.stdscr.getmaxyx()
