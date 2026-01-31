@@ -84,6 +84,7 @@ class GitTUI:
         if not self.watch_enabled or not self.repo_root:
             return
         if not self._has_inotifywait():
+            self.status_message = "Auto-refresh not available, install inotify-tools"
             return
 
         try:
