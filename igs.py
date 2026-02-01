@@ -84,7 +84,7 @@ class GitTUI:
         if not self.watch_enabled or not self.repo_root:
             return
         if not self._has_inotifywait():
-            self.status_message = "Auto-refresh not available, install inotify-tools"
+            self.status_message = "Warning: Auto-refresh not available, install inotify-tools"
             return
 
         try:
@@ -870,9 +870,6 @@ class GitTUI:
         # Use timeout for getch so we can check for file changes
         if self.watcher_proc:
             self.stdscr.timeout(100)  # 100ms timeout
-
-        if not self.files:
-            self.status_message = "No changes. Working directory clean."
 
         try:
             while True:
